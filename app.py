@@ -109,6 +109,7 @@ class MainWindow(QMainWindow):
         self.output_edit = QTextEdit()
         self.translate_button = QPushButton('翻译')
         self.clipboard_button = QPushButton('剪贴板翻译')
+        self.copy_result_button = QPushButton('复制结果')
         self.to_ball_button = QPushButton('退出程序')
         self.lang_map = {
             '自动检测→中文': ('auto', 'zh'),
@@ -138,6 +139,7 @@ class MainWindow(QMainWindow):
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.translate_button)
         button_layout.addWidget(self.clipboard_button)
+        button_layout.addWidget(self.copy_result_button)
         button_layout.addStretch()
         button_layout.addWidget(self.to_ball_button)
 
@@ -153,6 +155,7 @@ class MainWindow(QMainWindow):
 
         self.translate_button.clicked.connect(self.translate_current_text)
         self.clipboard_button.clicked.connect(self.translate_from_clipboard)
+        self.copy_result_button.clicked.connect(self.copy_result_to_clipboard)
         self.to_ball_button.clicked.connect(self.exit_app)
 
     def set_ball(self, ball):
@@ -177,6 +180,13 @@ class MainWindow(QMainWindow):
                 cleaned_lines.append(line)
                 last_blank = False
         return '\n'.join(cleaned_lines)
+
+    def copy_result_to_clipboard(self):
+        text = self.output_edit.toPlainText()
+        if not text:
+            return
+        clipboard = QApplication.clipboard()
+        clipboard.setText(text)
 
     def translate_current_text(self):
         text = self._clean_text(self.input_edit.toPlainText())
