@@ -9,9 +9,7 @@ import requests
 import random
 import json
 from hashlib import md5
-
-appid = '20260221002559094'
-appkey = '9jAh53DTwa04CaQwuS7j'
+from config.baidu_config import APP_ID, APP_KEY
 
 from_lang = 'en'
 to_lang = 'zh'
@@ -29,10 +27,10 @@ def translate_text(query, source_lang='auto', target_lang='zh'):
     if not query:
         return ''
     salt = random.randint(32768, 65536)
-    sign = make_md5(appid + query + str(salt) + appkey)
+    sign = make_md5(APP_ID + query + str(salt) + APP_KEY)
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
     payload = {
-        'appid': appid,
+        'appid': APP_ID,
         'q': query,
         'from': source_lang,
         'to': target_lang,
