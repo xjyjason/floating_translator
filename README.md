@@ -21,12 +21,16 @@
 
 ```text
 floating_translator/
-├─ app.py                   # 主程序入口（UI 与逻辑）
-├─ Baidu_Text_transAPI.py   # 百度文本翻译 API 封装
-├─ baidu_config.py          # 百度翻译密钥配置（本地保存，不建议提交）
-├─ build_exe.bat            # 使用 PyInstaller 打包为 exe
-├─ logo/                    # 程序图标资源
-└─ .gitignore
+├─ app.py                     # 主程序入口（UI 与逻辑）
+├─ Baidu_Text_transAPI.py     # 百度文本翻译 API 封装
+├─ build_exe.bat              # 使用 PyInstaller 打包为 exe
+├─ README.md                  # 项目说明文档
+├─ .gitignore                 # Git 忽略规则
+├─ config/                    # 本地配置目录
+│  └─ baidu_config.py         # 百度翻译密钥配置
+└─ logo/                      # 程序图标资源
+   ├─ translater.ico
+   └─ translater.svg
 ```
 
 ## 环境要求
@@ -57,12 +61,19 @@ pip install pyinstaller
 翻译功能依赖百度通用翻译 API。请在使用前：
 
 1. 注册并登录百度翻译开放平台，创建应用，获取 `appid` 和 `appkey`
-2. 打开根目录下的 `baidu_config.py`
+2. 在项目中创建或打开 `config/baidu_config.py`
 3. 将其中的 `APP_ID` 和 `APP_KEY` 修改为你自己的密钥
 
-> 建议在实际项目中避免把密钥直接写入代码仓库，可根据需要改为读取环境变量或本地配置文件。`baidu_config.py` 更适合作为本地配置文件使用。
+`config/baidu_config.py` 的基本结构如下：
 
-如果你计划将代码托管到 Git 仓库，推荐将 `baidu_config.py` 添加到 `.gitignore` 中，仅保留一个示例配置文件（例如 `baidu_config_example.py`）供参考。
+```python
+APP_ID = "你的 APPID"
+APP_KEY = "你的 APPKEY"
+```
+
+> 建议在实际项目中避免把密钥直接写入代码仓库，可根据需要改为读取环境变量或本地配置文件。本项目通过 `.gitignore` 中的 `/config/*.py` 规则，默认忽略整个 `config` 目录下的 Python 配置文件。
+
+如果你计划将代码托管到 Git 仓库，推荐仅提交一个示例配置文件（例如 `config/baidu_config_example.py`），在文档中提示用户复制并重命名为 `baidu_config.py` 后填写真实密钥。
 
 ## 运行项目
 
