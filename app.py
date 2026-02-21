@@ -1,6 +1,9 @@
 import os
 import sys
-from PySide6.QtCore import Qt, QPoint, Signal
+import threading
+import ctypes
+from ctypes import wintypes
+from PySide6.QtCore import Qt, QPoint, Signal, QObject
 from PySide6.QtGui import QColor, QPainter, QAction, QIcon, QRadialGradient
 from PySide6.QtWidgets import QApplication, QWidget, QMainWindow, QTextEdit, QPushButton, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QMessageBox, QSystemTrayIcon, QMenu, QStyle
 
@@ -11,6 +14,31 @@ def resource_path(relative_path):
     if hasattr(sys, '_MEIPASS'):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.join(os.path.abspath('.'), relative_path)
+
+
+class GlobalHotkeyListener(QObject):
+    hotkey_pressed = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def _run(self):
+        user32 = ctypes.windll.user32
+        MOD_ALT = 0x0001
+        MOD_CONTROL = 0x0002
+        WM_HOTKEY = 0x0312
+        HOTKEY_ID = 1
+        if not user32.RegisterHotKey(None, HOTKEY_ID, MOD_CONTROL | MOD_ALT, ord('A')):
+            return
+        msg = wintypes.MSG()
+        while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
+            if msg.message == WM_HOTKEY and msg.wParam == HOTKEY_ID:
+                self.hotkey_pressed.emit()
+            user32.TranslateMessage(ctypes.byref(msg))
+            user32.DispatchMessageW(ctypes.byref(msg))
+        user32.UnregisterHotKey(None, HOTKEY_ID)
 
 
 class FloatingBall(QWidget):
@@ -81,7 +109,7 @@ class MainWindow(QMainWindow):
         self.output_edit = QTextEdit()
         self.translate_button = QPushButton('翻译')
         self.clipboard_button = QPushButton('剪贴板翻译')
-        self.to_ball_button = QPushButton('收起为悬浮球')
+        self.to_ball_button = QPushButton('退出程序')
         self.lang_map = {
             '自动检测→中文': ('auto', 'zh'),
             '自动检测→英文': ('auto', 'en'),
@@ -97,7 +125,9 @@ class MainWindow(QMainWindow):
         self.lang_combo.addItems(self.lang_map.keys())
         self.lang_combo.setCurrentText('自动检测→中文')
 
+        self.input_edit.setAcceptRichText(False)
         self.output_edit.setReadOnly(True)
+        self.output_edit.setAcceptRichText(False)
 
         lang_layout = QHBoxLayout()
         lang_label = QLabel('语言方向')
@@ -123,7 +153,7 @@ class MainWindow(QMainWindow):
 
         self.translate_button.clicked.connect(self.translate_current_text)
         self.clipboard_button.clicked.connect(self.translate_from_clipboard)
-        self.to_ball_button.clicked.connect(self.minimize_to_ball)
+        self.to_ball_button.clicked.connect(self.exit_app)
 
     def set_ball(self, ball):
         self.ball = ball
@@ -132,8 +162,24 @@ class MainWindow(QMainWindow):
         key = self.lang_combo.currentText()
         return self.lang_map.get(key, ('auto', 'zh'))
 
+    def _clean_text(self, text):
+        text = text.replace('\r\n', '\n').replace('\r', '\n')
+        text = text.strip()
+        lines = [line.strip() for line in text.split('\n')]
+        cleaned_lines = []
+        last_blank = False
+        for line in lines:
+            if not line:
+                if not last_blank:
+                    cleaned_lines.append('')
+                last_blank = True
+            else:
+                cleaned_lines.append(line)
+                last_blank = False
+        return '\n'.join(cleaned_lines)
+
     def translate_current_text(self):
-        text = self.input_edit.toPlainText().strip()
+        text = self._clean_text(self.input_edit.toPlainText())
         if not text:
             return
         source_lang, target_lang = self.current_langs()
@@ -146,7 +192,7 @@ class MainWindow(QMainWindow):
 
     def translate_from_clipboard(self):
         clipboard = QApplication.clipboard()
-        text = clipboard.text().strip()
+        text = self._clean_text(clipboard.text())
         if not text:
             return
         self.input_edit.setPlainText(text)
@@ -158,6 +204,20 @@ class MainWindow(QMainWindow):
             self.ball.show()
             self.ball.raise_()
             self.ball.activateWindow()
+
+    def exit_app(self):
+        app = QApplication.instance()
+        if app is not None:
+            app.setProperty('quitting', True)
+            app.quit()
+
+    def closeEvent(self, event):
+        app = QApplication.instance()
+        if app is not None and app.property('quitting'):
+            super().closeEvent(event)
+            return
+        self.minimize_to_ball()
+        event.ignore()
 
 
 def create_tray(app, main_window, ball, icon):
@@ -190,6 +250,7 @@ def create_tray(app, main_window, ball, icon):
 
     def exit_app():
         tray.hide()
+        app.setProperty('quitting', True)
         app.quit()
 
     show_main_action.triggered.connect(show_main)
@@ -202,11 +263,26 @@ def create_tray(app, main_window, ball, icon):
 
 def main():
     app = QApplication(sys.argv)
+    app.setProperty('quitting', False)
     icon = QIcon(resource_path('logo/translater.svg'))
     main_window = MainWindow()
+    screen = app.primaryScreen()
     main_window.setWindowIcon(icon)
     ball = FloatingBall()
     main_window.set_ball(ball)
+
+    if screen is not None:
+        rect = screen.availableGeometry()
+
+        ball_x = rect.x() + rect.width() - ball.width() - 20
+        ball_y = rect.y() + rect.height() - ball.height() - 20
+        ball.move(ball_x, ball_y)
+
+        main_x = rect.x() + rect.width() - main_window.width() - 40
+        main_y = rect.y() + rect.height() - main_window.height() - 120
+        if main_y < rect.y():
+            main_y = rect.y()
+        main_window.move(main_x, main_y)
 
     def on_ball_clicked():
         ball.hide()
@@ -215,6 +291,24 @@ def main():
         main_window.activateWindow()
 
     ball.clicked.connect(on_ball_clicked)
+
+    def toggle_main():
+        if main_window.isVisible():
+            main_window.minimize_to_ball()
+        else:
+            ball.hide()
+            main_window.show()
+            main_window.raise_()
+            main_window.activateWindow()
+
+    shortcut_action = QAction(main_window)
+    shortcut_action.setShortcut('Ctrl+Alt+A')
+    shortcut_action.setShortcutContext(Qt.ApplicationShortcut)
+    shortcut_action.triggered.connect(toggle_main)
+    main_window.addAction(shortcut_action)
+
+    hotkey_listener = GlobalHotkeyListener(app)
+    hotkey_listener.hotkey_pressed.connect(toggle_main)
 
     create_tray(app, main_window, ball, icon)
 

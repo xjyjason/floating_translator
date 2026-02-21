@@ -3,3 +3,4 @@
 /FloatingTranslator.spec
 /__pycache__
 /config/*.py
+/config/__pycache__
